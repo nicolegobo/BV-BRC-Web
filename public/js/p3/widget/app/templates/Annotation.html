@@ -17,12 +17,12 @@
          <a href="${docsServiceURL}${tutorialLink}" target="_blank">Tutorial</a>, and <a href="${videoLink}" target="_blank">Instructional Video</a>.
       </p>
     </div>
-    <div style="width:450px; margin:auto" class="formFieldsContainer">
-      <div id="annotationBox" style="width:400px;" class="appBox appShadow">
+    <div class="formFieldsContainer" style="width:900px; max-width:100%; margin:auto">
+      <div id="annotationInputBox" class="appBox appShadow">
         <div class="headerrow">
           <div style="width:85%;display:inline-block;">
-            <label class="appBoxLabel">Parameters</label>
-            <div name="parameters" class="infobox iconbox infobutton dialoginfo">
+            <label class="appBoxLabel">Input File</label>
+            <div name="input-file" class="infobox iconbox infobutton dialoginfo">
               <i class="fa icon-info-circle fa" title="click to open info dialog"></i>
             </div>
           </div>
@@ -30,7 +30,7 @@
         <div class="appRow">
           <div class="appFieldLong">
             <label>Contigs</label><br>
-            <div data-dojo-type="p3/widget/WorkspaceObjectSelector" data-dojo-attach-point="contigs" name="contigs" style="width:100%" required="true" data-dojo-props="type:['contigs'],multi:false,promptMessage:'Select or Upload Contigs to your workspace for Annotation',missingMessage:'Contigs must be provided.'"></div>
+            <div class="standardField" data-dojo-type="p3/widget/WorkspaceObjectSelector" data-dojo-attach-point="contigs" name="contigs" required="true" data-dojo-props="type:['contigs'],multi:false,promptMessage:'Select or Upload Contigs to your workspace for Annotation',missingMessage:'Contigs must be provided.'"></div>
           </div>
         </div>
         <!-- <div class="appRow">
@@ -42,9 +42,56 @@
           <input type="radio" data-dojo-type="dijit/form/RadioButton" data-dojo-attach-point="phage" name="recipe" value="phage" />
           <label for="radio3" style="font-size:8pt">Bacteriophages</label>
         </div> -->
+      </div>
+      <div id="organismBox" class="appBox appShadow organismBox">
+        <div class="headerrow">
+          <label class="appBoxLabel">Organism</label>
+          <div name="organism" class="infobox iconbox infobutton dialoginfo">
+            <i class="fa icon-info-circle fa" title="click to open info dialog"></i>
+          </div>
+        </div>
+        <div class="organismIntro">We identify the most likely species using genome similarity to reference genomes. You can use the predicted species or specify a different taxonomy.</div>
+        <div class="organismSection">
+          <!-- Plain radios: which taxonomy to submit is a choice in the form, not a job parameter. -->
+          <label class="taxSourceOption"><input type="radio" name="${id}_taxonomy_source" data-dojo-attach-point="usePredictedRadio" checked="checked"> Use predicted species</label>
+          <div class="taxSourceBody">
+            <div data-dojo-type="p3/widget/SimilarGenomeTaxonFinder" data-dojo-attach-point="similarGenomeFinder"></div>
+          </div>
+          <label class="taxSourceOption"><input type="radio" name="${id}_taxonomy_source" data-dojo-attach-point="specifyTaxonRadio"> Specify a different taxonomy</label>
+          <div class="taxSourceBody taxFields">
+            <div class="taxNameField">
+              <label class="paramlabel">Taxonomy Name</label>
+              <br>
+              <div data-dojo-attach-event="onChange:onSuggestNameChange" data-dojo-type="p3/widget/TaxonNameSelector" name="scientific_name" maxHeight="200" style="width:100%" required="true" data-dojo-attach-point="scientific_nameWidget" data-dojo-props="includeEukaryotes:false"></div>
+            </div>
+            <div class="taxIdField">
+              <label class="paramlabel">Taxonomy ID</label>
+              <br>
+              <div data-dojo-attach-event="onChange:onTaxIDChange" data-dojo-type="p3/widget/TaxIDSelector" value="" name="tax_id" maxHeight="200" style="width:100%" required="true" data-dojo-attach-point="tax_idWidget"></div>
+            </div>
+          </div>
+        </div>
+        <div class="appRow organismSection">
+          <label class="paramlabel">If Our Organism Check Disagrees With This Taxonomy</label>
+          <br>
+          <input type="radio" data-dojo-type="dijit/form/RadioButton" data-dojo-attach-point="mismatchPolicyAuto" name="organism_mismatch_policy" value="auto" checked />
+          <label style="font-size:8pt">Use the predicted organism</label>
+          <input type="radio" data-dojo-type="dijit/form/RadioButton" data-dojo-attach-point="mismatchPolicySupplied" name="organism_mismatch_policy" value="supplied" />
+          <label style="font-size:8pt">Keep the taxonomy above</label>
+        </div>
+      </div>
+      <div id="annotationBox" class="appBox appShadow">
+        <div class="headerrow">
+          <div style="width:85%;display:inline-block;">
+            <label class="appBoxLabel">Parameters</label>
+            <div name="parameters" class="infobox iconbox infobutton dialoginfo">
+              <i class="fa icon-info-circle fa" title="click to open info dialog"></i>
+            </div>
+          </div>
+        </div>
         <div class="appRow">
           <label class="paramlabel">Annotation Recipe</label><br>
-          <select data-dojo-type="dijit/form/Select" name="recipe" data-dojo-attach-point="recipe" style="width:300px" required="true" data-dojo-attach-event="onChange:onRecipeChange">
+          <select class="standardField" data-dojo-type="dijit/form/Select" name="recipe" data-dojo-attach-point="recipe" required="true" data-dojo-attach-event="onChange:onRecipeChange">
             <option value="">--- Select Recipe ---</option>
             <option value="default">Bacteria / Archaea</option>
             <option value="viral">Viruses - VIGOR4 annotation</option>
@@ -53,29 +100,15 @@
           </select>
         </div>
         <div class="appRow">
-          <div class="appRowSegment" style="margin-left: 0px; text-align:left; width:70%">
-            <label class="paramlabel">Taxonomy Name</label>
-            <div name="taxon-information" class="infobox iconbox infobutton tooltipinfo">
-              <i class="fa icon-question-circle fa"></i>
-            </div>
-            <br>
-            <div data-dojo-attach-event="onChange:onSuggestNameChange" data-dojo-type="p3/widget/TaxonNameSelector" name="scientific_name" maxHeight="200" style="width:100%" required="true" data-dojo-attach-point="scientific_nameWidget" data-dojo-props="includeEukaryotes:false"></div>
-          </div>
-          <div class="appRowSegment" style="text-align:left; width:20%">
-            <label>Taxonomy ID</label><br>
-            <div data-dojo-attach-event="onChange:onTaxIDChange" data-dojo-type="p3/widget/TaxIDSelector" value="" name="tax_id" maxHeight="200" style="width:100%" required="true" data-dojo-attach-point="tax_idWidget"></div>
+          <div class="appFieldLong">
+            <label>My Label</label> <span class="charError" style="color:red; font-size:8pt; padding-left:10px; font-weight:bold">&nbsp;</span><br>
+            <div class="standardField cws" data-dojo-type="dijit/form/ValidationTextBox" data-dojo-attach-event="onChange:updateOutputName" name="my_label" data-dojo-attach-point="myLabelWidget" required="true" data-dojo-props="intermediateChanges:true, missingMessage:'You must provide a label',trim:true,intermediateChanges:true,placeHolder:'My identifier123'"></div>
           </div>
         </div>
         <div class="appRow">
           <div class="appFieldLong">
-            <label>My Label</label> <span class="charError" style="color:red; font-size:8pt; padding-left:10px; font-weight:bold">&nbsp;</span><br>
-            <div class="cws" data-dojo-type="dijit/form/ValidationTextBox" data-dojo-attach-event="onChange:updateOutputName" name="my_label" data-dojo-attach-point="myLabelWidget" style="width: 300px" required="true" data-dojo-props="intermediateChanges:true, missingMessage:'You must provide a label',trim:true,intermediateChanges:true,placeHolder:'My identifier123'"></div>
-          </div>
-        </div>
-        <div class="appRow">
-          <div class="appFieldLong" style="width:380px">
             <label>Output Name</label><br>
-            <div data-dojo-attach-point="output_nameWidget" style="width:380px; background-color:#F0F1F3" data-dojo-type="p3/widget/WorkspaceFilenameValidationTextBox" name="output_file" required="true" data-dojo-props="readOnly: true, promptMessage:'The output name for your Annotation Results',missingMessage:'Output Name must be provided.',trim:true,placeHolder:'Taxonomy + My Label'"></div>
+            <div class="standardField" data-dojo-attach-point="output_nameWidget" style="background-color:#F0F1F3" data-dojo-type="p3/widget/WorkspaceFilenameValidationTextBox" name="output_file" required="true" data-dojo-props="readOnly: true, promptMessage:'The output name for your Annotation Results',missingMessage:'Output Name must be provided.',trim:true,placeHolder:'Taxonomy + My Label'"></div>
           </div>
         </div>
         <div class="appRow" style="display:none">
@@ -87,7 +120,7 @@
         <div class="appRow">
           <div class="appFieldLong">
             <label>Output Folder</label><br>
-            <div data-dojo-attach-point="output_path" data-dojo-type="p3/widget/WorkspaceObjectSelector" name="output_path" style="width:100%" required="true"
+            <div class="standardField" data-dojo-attach-point="output_path" data-dojo-type="p3/widget/WorkspaceObjectSelector" name="output_path" required="true"
               data-dojo-props="title:'Select an Output Folder',autoSelectCurrent:true,selectionText:'Destination',type:['folder'],multi:false,value:'${activeWorkspacePath}',workspace:'${activeWorkspace}',promptMessage:'The output folder for your Annotation Results',missingMessage:'Output Folder must be selected.'"
             data-dojo-attach-event="onChange:onOutputPathChange"></div>
           </div>

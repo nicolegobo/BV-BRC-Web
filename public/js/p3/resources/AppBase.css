@@ -50,3 +50,199 @@
 	font-size: .65em;
 	text-transform: uppercase;
 }
+
+/* One width for single-field rows (recipe, label, output name, taxonomy,
+   input file and output folder), so the form's fields line up: 527px plus
+   the fields' borders. */
+.App .standardField {
+	width: 527px;
+	max-width: 100%;
+}
+/* A workspace selector is a sort icon, the search box and a folder icon.
+   Its search box ends with the other fields (the sort icon takes the first
+   17px) and the folder icon sits outside, past the fields' right edge. */
+.App .standardField.WorkspaceObjectSelector {
+	width: 600px;
+}
+.App .standardField.WorkspaceObjectSelector .search-box {
+	width: 510px;
+	max-width: calc(100% - 40px);
+}
+/* A dijit Select is a table; without this its arrow cell takes a share of
+   the added width and the blue button grows. */
+.App .standardField.dijitSelect .dijitButtonContents {
+	width: 100%;
+}
+
+/* Organism box: Similar Genome Finder, taxonomy and mismatch policy */
+/* border-box: the taxonomy and policy sections are also .appRow (width: 100%),
+   so padding must not add to their width. */
+.organismBox .organismSection {
+	box-sizing: border-box;
+	margin: 6px 0 8px;
+}
+.organismBox .appRow.organismSection {
+	width: 100%;
+}
+/* .appBox pads only its left side; these forms pad the right to match, so
+   wide content (the similar genome results) keeps clear of the edge. */
+.Annotation .appBox,
+.ComprehensiveGenomeAnalysis .appBox {
+	padding-right: 10px;
+}
+.organismBox .paramlabel {
+	font-weight: bold;
+}
+/* CGA's Start With choices: Read File / Assembled Contigs */
+.App LABEL.startWithOption {
+	font-size: 12px;
+}
+.organismIntro {
+	font-size: 12px;
+	color: #555;
+	margin: 0 0 8px;
+}
+.organismNote {
+	font-size: 12px;
+	color: #333;
+	margin: 0 0 8px;
+}
+.organismNote [hidden] {
+	display: none;
+}
+.organismNoteFile {
+	font-weight: bold;
+	word-break: break-all;
+}
+/* Use predicted species / Specify a different taxonomy */
+.App .organismBox LABEL.taxSourceOption {
+	display: block;
+	font-size: 13px;
+	font-weight: bold;
+	text-transform: none;
+	cursor: pointer;
+	margin: 2px 0 6px;
+}
+.taxSourceOption input {
+	margin: 0 6px 0 0;
+	vertical-align: -1px;
+}
+.taxSourceBody {
+	margin: 0 0 12px 22px;
+}
+.taxSourceBody:last-child {
+	margin-bottom: 2px;
+}
+/* Name and ID stay on one row; the name gives up width first when the
+   indented row is narrower than the standard field plus the ID. */
+.taxFields {
+	display: flex;
+	gap: 16px;
+	/* Spans the same width as a .standardField, lined up with the fields
+	   in the other boxes; the ID field's borders add the last 2px. */
+	max-width: 527px;
+}
+.taxSourceBody.taxFields {
+	margin-left: 0;
+}
+.taxNameField {
+	flex: 0 1 527px;
+	min-width: 0;
+}
+.taxIdField {
+	flex: 0 0 120px;
+}
+/* The finder's prediction card */
+.SimilarGenomeTaxonFinder [hidden] {
+	display: none !important;
+}
+.sgfCard {
+	padding: 4px 0;
+}
+.sgfSummary {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 12px;
+	font-size: 13px;
+}
+.sgfSpecies {
+	font-weight: bold;
+	font-size: 14px;
+}
+.sgfTaxid {
+	color: #666;
+}
+.sgfDivider {
+	width: 1px;
+	height: 18px;
+	background-color: #c4c7cc;
+}
+.sgfToggle {
+	margin-left: auto;
+	white-space: nowrap;
+}
+.sgfStatus {
+	font-size: 12px;
+	margin-bottom: 6px;
+}
+.sgfSummary:not([hidden]) + .sgfStatus {
+	margin-top: 8px;
+}
+.sgfDetails {
+	margin-top: 8px;
+}
+.sgfDetails .sgfControls {
+	margin-top: 8px;
+}
+.sgfStatus:empty {
+	display: none;
+}
+.sgfControls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 14px;
+}
+.sgfControls label {
+	font-size: 8pt;
+}
+.similarGenomeTable {
+	width: 100%;
+	border-collapse: collapse;
+	border: 1px solid #ababab;
+	font-size: 12px;
+	margin-top: 6px;
+}
+.similarGenomeTable th {
+	font-weight: bold;
+	text-align: left;
+	background-color: #e4e6e9;
+	border-bottom: 2px solid #ababab;
+	border-right: 1px solid #c4c7cc;
+	padding: 4px 6px;
+	white-space: nowrap;
+}
+.similarGenomeTable td {
+	padding: 4px 6px;
+	border-bottom: 1px solid #dcdcdc;
+	border-right: 1px solid #dcdcdc;
+}
+.similarGenomeTable .num {
+	text-align: right;
+	white-space: nowrap;
+}
+.similarGenomeTable tbody tr {
+	cursor: pointer;
+}
+.similarGenomeTable tbody tr:hover {
+	background-color: #eef4fb;
+}
+.similarGenomeTable tbody tr.selected {
+	background-color: #d9e8f7;
+	font-weight: bold;
+}
+.similarGenomeTable tbody tr.unavailable {
+	cursor: default;
+	color: #999;
+}

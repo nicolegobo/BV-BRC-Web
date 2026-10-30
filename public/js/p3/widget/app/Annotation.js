@@ -2,7 +2,7 @@ define([
   'dojo/_base/declare', 'dojo/_base/array', 'dojo/topic', 'dijit/_WidgetBase', 'dojo/on',
   'dojo/dom-class', 'dijit/_TemplatedMixin', 'dijit/_WidgetsInTemplateMixin',
   'dojo/text!./templates/Annotation.html', './AppBase',
-  'dojo/_base/lang', '../../WorkspaceManager'
+  'dojo/_base/lang', '../../WorkspaceManager', '../SimilarGenomeTaxonFinder'
 ], function (
   declare, array, Topic, WidgetBase, on,
   domClass, Templated, WidgetsInTemplate,
@@ -38,6 +38,15 @@ define([
       }
       _self.defaultPath = WorkspaceManager.getDefaultFolder() || _self.activeWorkspacePath;
       _self.output_path.set('value', _self.defaultPath);
+      this.similarGenomeFinder.getInputPath = lang.hitch(this, function () {
+        return this.contigs.get('value') || { error: 'Select a contigs file first.' };
+      });
+      this.similarGenomeFinder.on('select', lang.hitch(this, 'onPredictedSpecies'));
+      this.contigs.on('change', lang.hitch(this, function (path) {
+        this.similarGenomeFinder.inputChanged(path);
+      }));
+      on(this.usePredictedRadio, 'change', lang.hitch(this, 'onTaxonomySourceChange'));
+      on(this.specifyTaxonRadio, 'change', lang.hitch(this, 'onTaxonomySourceChange'));
       this.form_flag = false;
       try {
         this.intakeRerunForm();
@@ -47,6 +56,7 @@ define([
     },
 
     onTaxIDChange: function (val) {
+      this.taxonomyEntered(val);
       this._autoNameSet = true;
       var tax_item = this.tax_idWidget.get('item');
       if (tax_item) {
@@ -60,6 +70,7 @@ define([
           if (tax_obj) {
             this.scientific_nameWidget.set('item', tax_obj);
             this.scientific_nameWidget.validate();
+            this.setRecipeFromTaxon(tax_obj);
           }
         }));
         // this.scientific_nameWidget.set('value',sci_name);
@@ -69,6 +80,63 @@ define([
 
       }
       this._autoTaxSet = false;
+    },
+
+    // The Organism box's two choices: the finder's predicted species, or a
+    // taxonomy the submitter specifies. Either way the taxonomy fields hold
+    // what is submitted.
+    onPredictedSpecies: function (taxon, hit, auto) {
+      // Clicking a result means using it; the top hit chosen automatically
+      // must not replace a taxonomy the submitter specified.
+      if (!auto) {
+        this.usePredictedRadio.checked = true;
+      }
+      if (this.usePredictedRadio.checked) {
+        this.setTaxonFromSimilarGenome(taxon);
+      }
+    },
+
+    onTaxonomySourceChange: function () {
+      var predicted = this.similarGenomeFinder.getPrediction();
+      if (this.usePredictedRadio.checked && predicted) {
+        this.setTaxonFromSimilarGenome(predicted);
+      }
+    },
+
+    // A taxonomy other than the prediction was entered, so it is the
+    // submitter's own.
+    taxonomyEntered: function (tax_id) {
+      var predicted = this.similarGenomeFinder.getPrediction();
+      if (tax_id && !(predicted && String(tax_id) === String(predicted.taxon_id))) {
+        this.specifyTaxonRadio.checked = true;
+      }
+    },
+
+    // Fills the taxonomy fields the same way picking a Taxonomy ID by hand does.
+    setTaxonFromSimilarGenome: function (taxon) {
+      this.tax_idWidget.set('displayedValue', taxon.taxon_id);
+      this.tax_idWidget.set('value', taxon.taxon_id);
+    },
+
+    // Taxa whose viruses infect bacteria or archaea: the class Caudoviricetes
+    // (tailed phages) and the other phage families and classes.
+    phageTaxa: [2731619, 10841, 10860, 2842243, 10656, 10659, 10877, 10858],
+
+    // Picks the annotation recipe for bacteria, archaea and phages. Other
+    // viruses are left to the submitter, who chooses VIGOR4 or LowVan.
+    setRecipeFromTaxon: function (tax_obj) {
+      var lineage = (tax_obj.lineage_ids || []).map(Number);
+      var recipe;
+      if (lineage.indexOf(2) >= 0 || lineage.indexOf(2157) >= 0) {
+        recipe = 'default';
+      } else if (lineage.indexOf(10239) >= 0 &&
+        (this.phageTaxa.some(function (id) { return lineage.indexOf(id) >= 0; }) ||
+          /phage/i.test(tax_obj.taxon_name || ''))) {
+        recipe = 'phage';
+      }
+      if (recipe && recipe !== this.recipe.get('value')) {
+        this.recipe.set('value', recipe);
+      }
     },
 
     onRecipeChange: function (val) {
@@ -160,6 +228,10 @@ define([
       values.scientific_name = this.output_name;
       this.target_genome_id = this.tax_idWidget.get('displayedValue');
       values.taxonomy_id = this.target_genome_id;
+      var similarGenomes = this.similarGenomeFinder.getRecord();
+      if (similarGenomes) {
+        values.similar_genome_finder = similarGenomes;
+      }
 
       return values;
     },
@@ -181,6 +253,15 @@ define([
       this.tax_idWidget.set('value', job_params['taxonomy_id']);
       this.tax_idWidget.set('displayedValue', job_params['taxonomy_id']);
       this.scientific_nameWidget.set('item', job_params['scientific_name']);
+      this.setMismatchPolicy(job_params['organism_mismatch_policy']);
+    },
+
+    setMismatchPolicy: function (policy) {
+      if (policy === 'supplied') {
+        this.mismatchPolicySupplied.set('checked', true);
+      } else {
+        this.mismatchPolicyAuto.set('checked', true);
+      }
     },
 
     intakeRerunForm: function () {

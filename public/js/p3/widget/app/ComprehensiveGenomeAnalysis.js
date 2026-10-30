@@ -3,7 +3,7 @@ define([
   'dojo/on', 'dojo/request', 'dojo/dom-class', 'dojo/dom-construct',
   'dojo/text!./templates/ComprehensiveGenomeAnalysis.html', 'dojo/NodeList-traverse', 'dojo/store/Memory',
   'dijit/popup', 'dijit/TooltipDialog', 'dijit/Dialog',
-  './AppBase', '../../WorkspaceManager'
+  './AppBase', '../../WorkspaceManager', '../SimilarGenomeTaxonFinder'
 ], function (
   declare, array, Topic, WidgetBase, lang, Deferred,
   on, xhr, domClass, domConstruct,
@@ -52,6 +52,14 @@ define([
       var _self = this;
       _self.defaultPath = WorkspaceManager.getDefaultFolder() || _self.activeWorkspacePath;
       _self.output_path.set('value', _self.defaultPath);
+      this.similarGenomeFinder.getInputPath = lang.hitch(this, 'getSimilarGenomeInputPath');
+      this.similarGenomeFinder.on('select', lang.hitch(this, 'onPredictedSpecies'));
+      on(this.usePredictedRadio, 'change', lang.hitch(this, 'onTaxonomySourceChange'));
+      on(this.specifyTaxonRadio, 'change', lang.hitch(this, 'onTaxonomySourceChange'));
+      // Only clicks clear the Organism box: a rerun sets Start With in code,
+      // and a click on the already selected button does not fire.
+      this.startWithRead.on('click', lang.hitch(this, 'clearOrganism'));
+      this.startWithContigs.on('click', lang.hitch(this, 'clearOrganism'));
       for (var i = 0; i < this.startingRows; i++) {
         var tr = this.libsTable.insertRow(0);// domConstr.create("tr",{},this.libsTableBody);
         domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
@@ -306,6 +314,34 @@ define([
         obj._handle.remove();
         this.libraryStore.remove(obj._id);
       }, this);
+      this.checkParameterRequiredFields();
+    },
+
+    // The Input File box's one arrow: adds whatever is filled in, each kind
+    // with its own checks. The fields keep their values after adding, so
+    // anything already in Selected Libraries is skipped, not reported as a
+    // duplicate.
+    onAddReads: function () {
+      var isNew = lang.hitch(this, function (type) {
+        return !this.libraryStore.get(this.makeLibraryID(type));
+      });
+      var pair = (this.read1.searchBox.get('value') || this.read2.searchBox.get('value')) && isNew('paired');
+      var single = this.single_end_libsWidget.searchBox.get('value') && isNew('single');
+      var srr = this.srr_accession.get('value') && isNew('srr_accession');
+      if (!pair && !single && !srr) {
+        this.submit_selected_libs_validation_message.innerHTML = ' <br> Nothing new to add.<br>Hint: Fill in a read file or SRA run accession that is not already in Selected Libraries.';
+        return;
+      }
+      this.submit_selected_libs_validation_message.innerHTML = '';
+      if (pair) {
+        this.onAddPair();
+      }
+      if (single) {
+        this.onAddSingle();
+      }
+      if (srr) {
+        this.onAddSRR();
+      }
     },
 
     onAddPair: function () {
@@ -410,8 +446,10 @@ define([
     },
 
     onTaxIDChange: function (val) {
+      this.taxonomyEntered(val);
       this._autoNameSet = true;
-      var tax_id = this.tax_idWidget.get('item').taxon_id;
+      var tax_item = this.tax_idWidget.get('item');
+      var tax_id = tax_item && tax_item.taxon_id;
       // var tax_obj=this.tax_idWidget.get("item");
       if (tax_id) {
         var name_promise = this.scientific_nameWidget.store.get(tax_id);
@@ -424,6 +462,7 @@ define([
         }));
       }
       this._autoTaxSet = false;
+      this.checkParameterRequiredFields();
     },
 
     onGenomeSizeUnitsChange: function () {
@@ -479,7 +518,10 @@ define([
     },
 
     checkParameterRequiredFields: function () {
-      if (this.scientific_nameWidget.get('item') && this.myLabelWidget.get('value')
+      var sra = this.updateSraState();
+      this.similarGenomeFinder.inputChanged(this.startWithContigs.checked ?
+        this.contigsFile.get('value') : this.addedReadPath());
+      if ((sra || this.scientific_nameWidget.get('item')) && this.myLabelWidget.get('value')
          && this.output_path.get('value') && this.output_nameWidget.get('displayedValue') ) {
         this.validate();
       }
@@ -503,9 +545,125 @@ define([
       }
     },
 
+    // Input for the Similar Genome Finder: the contigs, or the first workspace
+    // read file (Read 1 of a pair). Libraries already added to the table come
+    // first, then a file selected but not yet added.
+    getSimilarGenomeInputPath: function () {
+      if (this.startWithContigs.checked) {
+        return this.contigsFile.get('value') || { error: 'Select a contigs file first.' };
+      }
+      var added = this.addedReadPath();
+      if (added) {
+        return added;
+      }
+      var pending = this.read1.searchBox.get('value') || this.single_end_libsWidget.searchBox.get('value');
+      if (pending) {
+        return pending;
+      }
+      if (this.hasSraInput()) {
+        return { error: 'SRA run accessions can\'t be searched here yet. Leave the taxonomy empty to have it predicted during the job, or specify a taxonomy below.' };
+      }
+      return { error: 'Add a read file first.' };
+    },
+
+    // The workspace read file in Selected Libraries that the finder searches.
+    addedReadPath: function () {
+      var paired = this.libraryStore.query({ _type: 'paired' });
+      if (paired.length) {
+        return paired[0].read1;
+      }
+      var single = this.libraryStore.query({ _type: 'single' });
+      return single.length ? single[0].read : null;
+    },
+
+    hasSraInput: function () {
+      return this.startWithRead.checked && this.libraryStore.query({ _type: 'srr_accession' }).length > 0;
+    },
+
+    // SRA runs cannot be searched from the form, so with one in the
+    // libraries the taxonomy is optional: left empty, the job's skani
+    // prediction supplies it. Keeping an empty taxonomy is not a choice.
+    // Returns whether an SRA run is among the inputs.
+    updateSraState: function () {
+      var sra = this.hasSraInput();
+      this.sraNote.hidden = !sra;
+      // With workspace reads alongside, the finder still runs on those, so
+      // the note names the file it searches.
+      var readPath = sra && this.addedReadPath();
+      this.sraOnlyNote.hidden = !!readPath;
+      this.sraMixedNote.hidden = !readPath;
+      // With only SRA input there is nothing for the finder to search.
+      this.similarGenomeFinder.domNode.hidden = sra && !readPath;
+      this.sraMixedFile.textContent = readPath ? readPath.split('/').pop() : '';
+      this.sraMixedFile.title = readPath || '';
+      this.scientific_nameWidget.set('required', !sra);
+      this.tax_idWidget.set('required', !sra);
+      var noTaxon = sra && !this.tax_idWidget.get('displayedValue');
+      if (noTaxon && this.mismatchPolicySupplied.get('checked')) {
+        this.mismatchPolicyAuto.set('checked', true);
+      }
+      this.mismatchPolicySupplied.set('disabled', noTaxon);
+      return sra;
+    },
+
+    // The Organism box's two choices: the finder's predicted species, or a
+    // taxonomy the submitter specifies. Either way the taxonomy fields hold
+    // what is submitted.
+    onPredictedSpecies: function (taxon, hit, auto) {
+      // Clicking a result means using it; the top hit chosen automatically
+      // must not replace a taxonomy the submitter specified.
+      if (!auto) {
+        this.usePredictedRadio.checked = true;
+      }
+      if (this.usePredictedRadio.checked) {
+        this.setTaxonFromSimilarGenome(taxon);
+      }
+    },
+
+    onTaxonomySourceChange: function () {
+      var predicted = this.similarGenomeFinder.getPrediction();
+      if (this.usePredictedRadio.checked && predicted) {
+        this.setTaxonFromSimilarGenome(predicted);
+      }
+    },
+
+    // A taxonomy other than the prediction was entered, so it is the
+    // submitter's own.
+    taxonomyEntered: function (tax_id) {
+      var predicted = this.similarGenomeFinder.getPrediction();
+      if (tax_id && !(predicted && String(tax_id) === String(predicted.taxon_id))) {
+        this.specifyTaxonRadio.checked = true;
+      }
+    },
+
+    // Fills the taxonomy fields the same way picking a Taxonomy ID by hand does.
+    setTaxonFromSimilarGenome: function (taxon) {
+      this.tax_idWidget.set('displayedValue', taxon.taxon_id);
+      this.tax_idWidget.set('value', taxon.taxon_id);
+    },
+
+    setMismatchPolicy: function (policy) {
+      if (policy === 'supplied') {
+        this.mismatchPolicySupplied.set('checked', true);
+      } else {
+        this.mismatchPolicyAuto.set('checked', true);
+      }
+    },
+
+    // A prediction or taxonomy chosen for one input does not carry over to
+    // another, so a new Start With empties the Organism box.
+    clearOrganism: function () {
+      this.similarGenomeFinder.reset();
+      this.usePredictedRadio.checked = true;
+      this.tax_idWidget.reset();
+      this.scientific_nameWidget.reset();
+      this.output_nameWidget.set('value', '');
+      this.updateOutputName();
+    },
+
     onStartWithChange: function () {
       if (this.startWithRead.checked == true) {
-        this.readTable.style.display = 'block';
+        this.readTable.style.display = '';
         this.assemblyStrategy.style.display = 'block';
         this.assembly_additional_parameters_block.style.display = 'block';
         this.annotationFileBox.style.display = 'none';
@@ -572,6 +730,16 @@ define([
       values.scientific_name = this.output_file;
       this.target_genome_id = this.tax_idWidget.get('displayedValue');
       values.taxonomy_id = this.target_genome_id;
+      if (!this.target_genome_id) {
+        // SRA input with no taxonomy: the job predicts it.
+        delete values.taxonomy_id;
+        delete values.tax_id;
+        delete values.scientific_name;
+      }
+      var similarGenomes = this.similarGenomeFinder.getRecord();
+      if (similarGenomes) {
+        values.similar_genome_finder = similarGenomes;
+      }
       if (this.startWithContigs.checked) {  // starting from contigs
         values.input_type = 'contigs'; // set input_type to be 'contigs'
         var assembly_inputs = ['recipe', 'genome_size', 'trim', 'normalize', 'racon_iter', 'pilon_iter', 'min_contig_len', 'min_contig_cov'];
@@ -619,6 +787,7 @@ define([
               }, 1000);
             }
             this.tax_idWidget.set('value', job_data['taxonomy_id']);
+            this.setMismatchPolicy(job_data['organism_mismatch_policy']);
             this.recipe.set('value', job_data['recipe']);
             Object.keys(service_spec).forEach(lang.hitch(this, function (adv_opt) {
               this[adv_opt].set('value', job_data[adv_opt]);

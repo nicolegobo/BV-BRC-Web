@@ -1,0 +1,33 @@
+<div class="SimilarGenomeTaxonFinder">
+  <div class="sgfCard">
+    <div data-dojo-attach-point="summaryNode" class="sgfSummary" hidden>
+      <span class="sgfSpecies" data-dojo-attach-point="speciesNode"></span>
+      <span class="sgfTaxid" data-dojo-attach-point="taxidNode"></span>
+      <span class="sgfDivider"></span>
+      <span class="sgfAni">Est. ANI: <span data-dojo-attach-point="aniNode"></span></span>
+      <a class="sgfToggle" href="javascript:void(0)" data-dojo-attach-point="toggleNode" data-dojo-attach-event="onclick:toggleDetails"></a>
+    </div>
+    <div data-dojo-attach-point="statusNode" class="sgfStatus"></div>
+    <div data-dojo-attach-point="detailsNode" class="sgfDetails" hidden>
+      <div style="overflow-x:auto">
+        <table class="similarGenomeTable">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Genome</th>
+              <th>Species</th>
+              <th class="num">Distance</th>
+              <th class="num">P value</th>
+              <th class="num">K-mer Counts</th>
+              <th class="num">Est. ANI</th>
+            </tr>
+          </thead>
+          <tbody data-dojo-attach-point="resultsBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div data-dojo-attach-point="controlsNode" class="sgfControls">
+      <a href="javascript:void(0)" data-dojo-attach-point="searchAgainNode" data-dojo-attach-event="onclick:searchAgain" hidden>Search again</a>
+    </div>
+  </div>
+</div>
