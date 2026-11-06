@@ -177,17 +177,32 @@ table.librarytable td > i {
 
 /* Side-by-side boxes in one table row (e.g. Input File and Selected
    Libraries) stretched to the same height. Put the class on the table when it
-   has one row, or on the row itself. Boxes in the row must not set a fixed
-   height. The 25px is .appBox's vertical padding (15px) plus its bottom
-   margin (10px). */
+   has one row, or on the row itself. The row is laid out as a flex row so the
+   boxes stretch in every browser (Firefox does not stretch a percentage
+   height inside a table cell). Boxes in the row must not set a fixed height. */
+table.equalHeightBoxes > tbody > tr,
+tr.equalHeightBoxes {
+    display: flex;
+}
 table.equalHeightBoxes > tbody > tr > td,
 tr.equalHeightBoxes > td {
-    height: 1px;
-    vertical-align: top;
+    display: flex;
+    flex-direction: column;
 }
 table.equalHeightBoxes > tbody > tr > td > .appBox,
 tr.equalHeightBoxes > td > .appBox {
-    height: calc(100% - 25px);
+    flex: 1 1 auto;
+}
+/* The library table fills what's left of its box: its rows share the extra
+   height, and the gap below it matches the gaps at its sides. */
+.libraryBox {
+    display: flex;
+    flex-direction: column;
+}
+.libraryBox .libraryTableRow {
+    flex: 1 1 auto;
+    display: flex;
+    margin-bottom: 10px;
 }
 
 .appRowSegment {
