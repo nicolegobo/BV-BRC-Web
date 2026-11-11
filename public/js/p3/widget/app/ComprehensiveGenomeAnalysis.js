@@ -598,11 +598,6 @@ define([
       this.sraMixedFile.title = readPath || '';
       this.scientific_nameWidget.set('required', !sra);
       this.tax_idWidget.set('required', !sra);
-      var noTaxon = sra && !this.tax_idWidget.get('displayedValue');
-      if (noTaxon && this.mismatchPolicySupplied.get('checked')) {
-        this.mismatchPolicyAuto.set('checked', true);
-      }
-      this.mismatchPolicySupplied.set('disabled', noTaxon);
       return sra;
     },
 
@@ -640,14 +635,6 @@ define([
     setTaxonFromSimilarGenome: function (taxon) {
       this.tax_idWidget.set('displayedValue', taxon.taxon_id);
       this.tax_idWidget.set('value', taxon.taxon_id);
-    },
-
-    setMismatchPolicy: function (policy) {
-      if (policy === 'supplied') {
-        this.mismatchPolicySupplied.set('checked', true);
-      } else {
-        this.mismatchPolicyAuto.set('checked', true);
-      }
     },
 
     // A prediction or taxonomy chosen for one input does not carry over to
@@ -736,6 +723,11 @@ define([
         delete values.tax_id;
         delete values.scientific_name;
       }
+      else {
+        // Which Organism choice the taxonomy came from: the job keeps a
+        // taxonomy the submitter specified and may replace a predicted one.
+        values.taxonomy_source = this.usePredictedRadio.checked ? 'predicted' : 'supplied';
+      }
       var similarGenomes = this.similarGenomeFinder.getRecord();
       if (similarGenomes) {
         values.similar_genome_finder = similarGenomes;
@@ -787,7 +779,10 @@ define([
               }, 1000);
             }
             this.tax_idWidget.set('value', job_data['taxonomy_id']);
-            this.setMismatchPolicy(job_data['organism_mismatch_policy']);
+            // Set after the taxonomy, which on its own marks it as specified.
+            if (job_data['taxonomy_source'] === 'predicted') {
+              this.usePredictedRadio.checked = true;
+            }
             this.recipe.set('value', job_data['recipe']);
             Object.keys(service_spec).forEach(lang.hitch(this, function (adv_opt) {
               this[adv_opt].set('value', job_data[adv_opt]);

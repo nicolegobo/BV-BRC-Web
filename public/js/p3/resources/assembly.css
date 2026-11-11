@@ -193,6 +193,17 @@ table.equalHeightBoxes > tbody > tr > td > .appBox,
 tr.equalHeightBoxes > td > .appBox {
     flex: 1 1 auto;
 }
+/* A table of one row of boxes is spaced like the boxes around it: no cell
+   spacing (so its boxes line up with the full-width boxes) and a 10px gap
+   below, the same as the gap between the two boxes. The table's bottom
+   margin overlaps the next box's top margin where it has one. */
+table.equalHeightBoxes {
+    border-spacing: 0;
+    margin-bottom: 10px;
+}
+table.equalHeightBoxes > tbody > tr > td > .appBox {
+    margin-bottom: 0;
+}
 /* The library table fills what's left of its box: its rows share the extra
    height, and the gap below it matches the gaps at its sides. */
 .libraryBox {

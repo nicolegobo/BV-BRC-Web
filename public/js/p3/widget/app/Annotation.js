@@ -228,6 +228,9 @@ define([
       values.scientific_name = this.output_name;
       this.target_genome_id = this.tax_idWidget.get('displayedValue');
       values.taxonomy_id = this.target_genome_id;
+      // Which Organism choice the taxonomy came from: the job keeps a
+      // taxonomy the submitter specified and may replace a predicted one.
+      values.taxonomy_source = this.usePredictedRadio.checked ? 'predicted' : 'supplied';
       var similarGenomes = this.similarGenomeFinder.getRecord();
       if (similarGenomes) {
         values.similar_genome_finder = similarGenomes;
@@ -253,14 +256,9 @@ define([
       this.tax_idWidget.set('value', job_params['taxonomy_id']);
       this.tax_idWidget.set('displayedValue', job_params['taxonomy_id']);
       this.scientific_nameWidget.set('item', job_params['scientific_name']);
-      this.setMismatchPolicy(job_params['organism_mismatch_policy']);
-    },
-
-    setMismatchPolicy: function (policy) {
-      if (policy === 'supplied') {
-        this.mismatchPolicySupplied.set('checked', true);
-      } else {
-        this.mismatchPolicyAuto.set('checked', true);
+      // Set after the taxonomy, which on its own marks it as specified.
+      if (job_params['taxonomy_source'] === 'predicted') {
+        this.usePredictedRadio.checked = true;
       }
     },
 

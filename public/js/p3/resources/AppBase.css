@@ -74,7 +74,7 @@
 	width: 100%;
 }
 
-/* Organism box: Similar Genome Finder, taxonomy and mismatch policy */
+/* Organism box: Similar Genome Finder and taxonomy */
 /* border-box: the taxonomy and policy sections are also .appRow (width: 100%),
    so padding must not add to their width. */
 .organismBox .organismSection {
