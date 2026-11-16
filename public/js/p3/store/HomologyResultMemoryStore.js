@@ -32,6 +32,22 @@ define([
     onSetLoaded: function (attr, oldVal, loaded) {
     },
 
+    // BLAST hit ids for a nucleotide (fna) database carry a decoration that the
+    // genome_sequence collection does not: 'accn|CP002078', or a doubled genome
+    // prefix such as '235.127.235.127.con.0001'. Strip it so the id matches the
+    // sequence_id / accession we query Solr with AND the key we later look the
+    // metadata back up by. Both sides must use this function -- when the query
+    // side normalized and the lookup side did not, every row lost its genome
+    // (issue #1542).
+    normalizeSequenceId: function (id) {
+      if (id.includes('accn|')) {
+        return id.replace('accn|', '');
+      } else if (id.includes('.con.')) {
+        return id.replace(/^(\d+\.\d+)\.\1\./, '$1.');
+      }
+      return id.replace(/^\d+\.\d+\./, '');
+    },
+
     constructor: function (options) {
       this.watch('dataPath', lang.hitch(this, 'onSetDataPath'));
       this.watch('loaded', lang.hitch(this, 'onSetLoaded'))
@@ -193,27 +209,46 @@ define([
               res.lookups.push(this.getBlankMeta(resultIds));
             }
 
-            var query = { rows: 25000 };
+            // The data API silently truncates its response when rows >= 10000
+            // (returns HTTP 200 with a truncated body, which then fails JSON parsing).
+            // The decoration query only needs one Solr doc per BLAST hit id, so bound
+            // rows by the id count, capped safely below the API ceiling. See JIRA-4420.
+            var MAX_DECORATION_ROWS = 9000;
+            var query = { rows: Math.min(resultIds.length || 1, MAX_DECORATION_ROWS) };
 
             // var doQuery = false;
             if (this.type == 'genome_sequence') {
               // doQuery = true;
-              resultIds = resultIds.map(function (d) {
-                if (d.includes('accn|')) {
-                  return d.replace('accn|', '');
-                } else if (d.includes('.con.')) {
-                  return d.replace(/^(\d+\.\d+)\.\1\./, '$1.');
-                } else {
-                  return d.replace(/^\d+\.\d+\./, '');
-                }
-              }).filter(function (d) {
+              resultIds = resultIds.map(lang.hitch(this, 'normalizeSequenceId')).filter(function (d) {
                 return d !== '';
               });
               if (resultIds.length <= 0) {
                 this.type = 'no_ids';
                 this.defaultLoadData(res);
               } else {
-                query.q = (resultIds.length > 0) ? 'accession:(' + resultIds.join(' OR ') + ')' : {};
+                // Separate IDs by query type based on pattern matching
+                var sequenceIdMatches = [];
+                var accessionMatches = [];
+                var conPattern = /^\d+\.\d+\.con\.\d+$/;
+
+                resultIds.forEach(function(id) {
+                  if (conPattern.test(id)) {
+                    sequenceIdMatches.push(id);
+                  } else {
+                    accessionMatches.push(id);
+                  }
+                });
+
+                // Build query parts
+                var queryParts = [];
+                if (sequenceIdMatches.length > 0) {
+                  queryParts.push('sequence_id:(' + sequenceIdMatches.join(' OR ') + ')');
+                }
+                if (accessionMatches.length > 0) {
+                  queryParts.push('accession:(' + accessionMatches.join(' OR ') + ')');
+                }
+
+                query.q = queryParts.length > 0 ? queryParts.join(' OR ') : {};
                 query.fl = 'genome_id,genome_name,taxon_id,sequence_id,accession,sequence_type,description';
               }
             } else if (this.type == 'genome_feature') {
@@ -257,7 +292,18 @@ define([
                 var keyMap = {};
                 keys.forEach(function (f) {
                   if (this.type == 'genome_sequence') {
-                    keyMap[f.accession] = f;
+                    if (f.sequence_id) {
+                      keyMap[f.sequence_id] = f;
+                    }
+                    if (f.accession) {
+                      keyMap[f.accession] = f;
+                    }
+                    if (f.genome_id && f.accession) {
+                      keyMap[f.genome_id + '.' + f.accession] = f;
+                    }
+                    if (f.genome_id && f.sequence_id) {
+                      keyMap[f.genome_id + '.' + f.sequence_id] = f;
+                    }
                   } else {
                     if (f.annotation == 'RefSeq') {
                       keyMap[f.refseq_locus_tag] = f;
@@ -268,6 +314,14 @@ define([
                   }
                 }, this);
                 res.lookups.push(keyMap);
+                this.defaultLoadData(res);
+              }), lang.hitch(this, function (err) {
+                // Decoration query failed (e.g. API returned a truncated body).
+                // Don't leave the grid hanging on an unresolved deferred: render the
+                // BLAST results without Solr metadata rather than showing nothing.
+                console.warn('HomologyResultMemoryStore: decoration query failed, '
+                  + 'rendering results without metadata:', err);
+                res.lookups.push({});
                 this.defaultLoadData(res);
               }));
             }
@@ -298,7 +352,9 @@ define([
 
       // NEED ANOTHER LOOP HERE TO ACCOUNT FOR THE MULTIPLE QUERIES
       // AND TO FIGURE OUT WHICH GRID YOU SHOULD USE FOR NON-DECORATING RESULTS
-      var metadata = json.lookups[0];
+      // The 'no_ids' path reaches here with lookups still empty, and the
+      // hasOwnProperty probes below throw on undefined.
+      var metadata = json.lookups[0] || {};
       var identical = {}; // NEED TO FIND OUT WHEN / HOW IDENTICAL IS POPULATED
       var features = json.lookups[1] || {};
       var entries = [];
@@ -358,21 +414,13 @@ define([
             delete entry.genome_id;
             delete entry.genome_name;
           } else if (this.type === 'genome_sequence') {
-            // target_id = target_id.replace('accn|', '');
-            if (target_id.includes('accn|')) {
-              target_id = target_id.replace('accn|', '');
-            } else if (target_id.includes('.con.')) {
-              target_id = target_id.replace(/^(\d+\.\d+)\.\1\./, '$1.');
+            // The keyMap was built from normalized ids, so normalize here too.
+            var seq_key = this.normalizeSequenceId(target_id);
+            if (Object.prototype.hasOwnProperty.call(metadata, seq_key)) {
+              entry = lang.mixin(entry, metadata[seq_key]);
             } else {
-              target_id = target_id.replace(/^\d+\.\d+\./, '');
-            }
-            if (Object.prototype.hasOwnProperty.call(metadata, target_id)) {
-              entry.genome_id = metadata[target_id].genome_id;
-              entry.sequence_type = metadata[target_id].sequence_type;
-              entry.description = metadata[target_id].description;
-              entry = lang.mixin(entry, metadata[target_id]);
-            } else {
-              console.log('missing id: ', target_id);
+              console.warn('HomologyResultMemoryStore: no genome_sequence metadata for hit id '
+                + target_id + ' (normalized to ' + seq_key + ')');
             }
           } else if (this.type === 'specialty_genes' || this.state.submit_values.db_source === 'fasta_data') {
             if (Object.prototype.hasOwnProperty.call(metadata, target_id)) {

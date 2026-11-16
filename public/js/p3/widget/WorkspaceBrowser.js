@@ -830,7 +830,7 @@ define([
       }, function (selection) {
         // console.log("Current Container Widget: ", self.actionPanel.currentContainerWidget, "Slection: ", selection)
         var modPath = self.actionPanel.currentContainerWidget.path.replace(/^\/public/, '');
-        Topic.publish('/navigate', { href: '/view/Homology' + modPath });
+        Topic.publish('/navigate', { href: '/view/Homology' + encodePath(modPath) });
       }, false);
 
 
@@ -1054,6 +1054,68 @@ define([
             Topic.publish("/navigate", { href: "/workspace" + encodePath(path) });
           } else {
             console.log("Error: could not find small_molecule_docking_report.html");
+          }
+        }
+      );
+      this.browserHeader.addAction(
+        "ViewPredictStructureReport",
+        "fa icon-eye fa-2x",
+        {
+          label: "REPORT",
+          multiple: false,
+          validTypes: ["PredictStructure"],
+          tooltip: "View Structure Prediction Report",
+        },
+        function (selection) {
+          var path;
+          selection[0].autoMeta.output_files.forEach(
+            lang.hitch(this, function (file_data) {
+              var filepath = file_data[0].split("/");
+              if (filepath[filepath.length - 1] === "report.html") {
+                path = filepath.join("/");
+              }
+            })
+          );
+          if (path) {
+            // Open in a new tab so the user keeps their place in the
+            // workspace listing; the report is a destination, not a step.
+            window.open("/workspace" + encodePath(path), "_blank");
+          } else {
+            console.log("Error: could not find report.html");
+          }
+        }
+      );
+      this.browserHeader.addAction(
+        "ViewStabiliNNatorReport",
+        "fa icon-eye fa-2x",
+        {
+          label: "REPORT",
+          multiple: false,
+          validTypes: ["StabiliNNator"],
+          tooltip: "View Protein Stability Report",
+        },
+        function (selection) {
+          var path;
+          // Match on the "_report.html" suffix rather than a fixed filename as
+          // the other report actions do. StabiliNNator now writes a fixed
+          // stabilinnator_report.html, but jobs completed before that change
+          // named the report after the input structure
+          // (<basename>_report.html). The suffix match covers both, so it must
+          // stay until those legacy results are gone.
+          selection[0].autoMeta.output_files.forEach(
+            lang.hitch(this, function (file_data) {
+              var filepath = file_data[0].split("/");
+              var filename = filepath[filepath.length - 1];
+              if (filename.length > "_report.html".length &&
+                  filename.slice(-"_report.html".length) === "_report.html") {
+                path = filepath.join("/");
+              }
+            })
+          );
+          if (path) {
+            window.open("/workspace" + encodePath(path), "_blank");
+          } else {
+            console.log("Error: could not find <basename>_report.html");
           }
         }
       );
@@ -1293,7 +1355,7 @@ define([
 
         tooltip: 'View Synteny Graph'
       }, function (selection) {
-          Topic.publish('/navigate', { href: '/view/GEXF/?' + '&path=' + encodePath(selection[0].path) });
+          Topic.publish('/navigate', { href: '/view/Gexf/?' + '&path=' + encodePath(selection[0].path) });
       }, true);
 
       this.browserHeader.addAction('ViewNwkXml', 'fa icon-eye fa-2x', {
@@ -1536,9 +1598,9 @@ define([
               alignType = 'dna';
             }
             if (exist_nwk == 1) {
-              Topic.publish('/navigate', { href: '/view/MSATree/&alignType=' + alignType + '&path=' + afa_file, target: 'blank' });
+              Topic.publish('/navigate', { href: '/view/MSATree/&alignType=' + alignType + '&path=' + encodeURIComponent(afa_file), target: 'blank' });
             } else {
-              Topic.publish('/navigate', { href: '/view/MSAView/&alignType=' + alignType + '&path=' + afa_file, target: 'blank' });
+              Topic.publish('/navigate', { href: '/view/MSAView/&alignType=' + alignType + '&path=' + encodeURIComponent(afa_file), target: 'blank' });
             }
           });
         }
@@ -2055,7 +2117,7 @@ define([
         var item = selection[0];
         var parentPath = item.path.split('/').slice(0, -1).join('/');
         if (parentPath) {
-          Topic.publish('/navigate', { href: '/workspace' + parentPath, target: 'blank' });
+          Topic.publish('/navigate', { href: '/workspace' + encodePath(parentPath), target: 'blank' });
         }
       }, true); // The 'enabled' flag should be true so it can be controlled by logic
 
@@ -2781,7 +2843,7 @@ define([
             }
             break;
           case 'gexf':
-            Topic.publish('/navigate', { href: '/view/Gexf' + '&path=' + this.file, target: 'blank' });
+            Topic.publish('/navigate', { href: '/view/Gexf' + '&path=' + encodeURIComponent(this.file), target: 'blank' });
             return;
           case 'genome_group':
             panelCtor = window.App.getConstructor('p3/widget/viewer/WSGenomeGroup');
